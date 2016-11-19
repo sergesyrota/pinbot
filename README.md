@@ -1,5 +1,5 @@
 ```bash
-brew install opencv3
+brew install --HEAD opencv3 --with-contrib
 brew install webp
 
 pip install --upgrade pip
