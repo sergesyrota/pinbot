@@ -3,6 +3,12 @@ import numpy as np
 import argparse
 import imutils
 import cv2
+import sys
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-src','--src', help='Input video', required=True)
+args = parser.parse_args()
 
 # define the lower and upper boundaries of the "green"
 # ball in the HSV color space, then initialize the
@@ -18,7 +24,7 @@ pts = deque(maxlen=255)
 #camera.set(5, 30.0) # fps
 # Video file
 #camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/gameplay.mp4")
-camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/multi-ball.mov")
+camera = cv2.VideoCapture(args.src)
 fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
 
 #skip first some frames
@@ -31,18 +37,18 @@ fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
 while True:
     # grab the current frame
     (grabbed, frame) = camera.read()
-    
+
     # if we are viewing a video and we did not grab a frame,
     # then we have reached the end of the video
     if not grabbed:
         break
-    
+
     # resize the frame, blur it, and convert it to the HSV
     # color space
     #frame = imutils.resize(frame, width=600)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     #hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-      
+
     # construct a mask for the color "green", then perform
     # a series of dilations and erosions to remove any small
     # blobs left in the mask
@@ -56,7 +62,7 @@ while True:
         # if the contour is too small, ignore it
         if cv2.contourArea(c) < 80:
             continue
-            
+
         # compute the bounding box for the contour, draw it on the frame,
         # and update the text
         (x, y, w, h) = cv2.boundingRect(c)
@@ -67,7 +73,7 @@ while True:
     # show the frame to our screen
     cv2.imshow("Frame", mask)
     key = cv2.waitKey(1) & 0xFF
-        
+
     # if the 'q' key is pressed, stop the loop
     if key == ord("q"):
         break
