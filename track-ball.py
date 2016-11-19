@@ -18,14 +18,14 @@ pts = deque(maxlen=255)
 #camera.set(5, 30.0) # fps
 # Video file
 #camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/gameplay.mp4")
-camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/catacomb2.mov")
+camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/multi-ball.mov")
 fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
 
 #skip first some frames
 # 350 - for south park
-#
-for i in xrange(1,3700):
-    camera.read()
+# 3700 - single-ball action for a little bit
+#for i in xrange(1,3700):
+#    camera.read()
 
 # keep looping
 while True:
