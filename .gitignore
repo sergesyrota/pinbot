@@ -1,0 +1,9 @@
+.bundle
+.vagrant
+log/*
+tmp/**/*
+.DS_Store
+.idea
+!.keep
+
+.virtualenv
