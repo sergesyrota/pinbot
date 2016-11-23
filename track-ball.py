@@ -8,13 +8,13 @@ import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-src', '--src', help='Input video', required=True)
+parser.add_argument('-stage', help='Override stages of the game (right flipper, left flipper, gameplay) by supplying frame numbers (100,500,1000)', required=True)
 args = parser.parse_args()
 
-# define the lower and upper boundaries of the "green"
-# ball in the HSV color space, then initialize the
+stages = map(int, args.stage.split(','))
+print stages
+
 # list of tracked points
-greenLower = (0, 0, 10)
-greenUpper = (255, 40, 250)
 pts = deque(maxlen=255)
 
 # Webcam
@@ -28,7 +28,10 @@ camera = cv2.VideoCapture(args.src)
 fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
 
 # keep looping
+frameNumber = 0
+currentStage = -1
 while True:
+    frameNumber = frameNumber+1
     # grab the current frame
     (grabbed, frame) = camera.read()
 
@@ -37,10 +40,11 @@ while True:
     if not grabbed:
         break
 
+    print("%d =========================" % frameNumber)
     # resize the frame, blur it, and convert it to the HSV
     # color space
     # frame = imutils.resize(frame, width=600)
-    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+    # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # construct a mask for the color "green", then perform
@@ -48,7 +52,6 @@ while True:
     # blobs left in the mask
     mask = fgbg.apply(frame)
     # mask=cv2.inRange(hsv, greenLower, greenUpper)
-    mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
     (_, cnts, _) = cv2.findContours(mask.copy(),
                                     cv2.RETR_EXTERNAL,
@@ -62,6 +65,7 @@ while True:
         # and update the text
         (x, y, w, h) = cv2.boundingRect(c)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     # Show original on the screen
     cv2.imshow("Original", frame)
