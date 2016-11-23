@@ -7,7 +7,7 @@ import sys
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-src','--src', help='Input video', required=True)
+parser.add_argument('-src', '--src', help='Input video', required=True)
 args = parser.parse_args()
 
 # define the lower and upper boundaries of the "green"
@@ -18,20 +18,14 @@ greenUpper = (255, 40, 250)
 pts = deque(maxlen=255)
 
 # Webcam
-#camera = cv2.VideoCapture(0)
-#camera.set(3, 320) # width
-#camera.set(4, 240) # height
-#camera.set(5, 30.0) # fps
+# camera = cv2.VideoCapture(0)
+# camera.set(3, 320) # width
+# camera.set(4, 240) # height
+# camera.set(5, 30.0) # fps
+
 # Video file
-#camera = cv2.VideoCapture("/Users/sergeysyrota/opencv/Pinball-playing/gameplay.mp4")
 camera = cv2.VideoCapture(args.src)
 fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
-
-#skip first some frames
-# 350 - for south park
-# 3700 - single-ball action for a little bit
-#for i in xrange(1,3700):
-#    camera.read()
 
 # keep looping
 while True:
@@ -45,19 +39,20 @@ while True:
 
     # resize the frame, blur it, and convert it to the HSV
     # color space
-    #frame = imutils.resize(frame, width=600)
+    # frame = imutils.resize(frame, width=600)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-    #hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # construct a mask for the color "green", then perform
     # a series of dilations and erosions to remove any small
     # blobs left in the mask
     mask = fgbg.apply(frame)
-    #mask=cv2.inRange(hsv, greenLower, greenUpper)
+    # mask=cv2.inRange(hsv, greenLower, greenUpper)
     mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
-    (_, cnts, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-                                 cv2.CHAIN_APPROX_SIMPLE)
+    (_, cnts, _) = cv2.findContours(mask.copy(),
+                                    cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)
     for c in cnts:
         # if the contour is too small, ignore it
         if cv2.contourArea(c) < 80:
