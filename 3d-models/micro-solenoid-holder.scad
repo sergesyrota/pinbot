@@ -13,13 +13,13 @@ solenoid_thread_depth=3;
 rotate([0,270,0]) difference() {
     body();
     // magnet cutout
-    #rotate([90,0,0]) translate([wall, wall, wall]) cube(magnet);
+    rotate([90,0,0]) translate([wall, wall, wall]) cube(magnet);
     // screw hole
     for (s=screw_mounts) {
         #translate([s[0], s[1]+solenoid_travel_offset, wall]) screw_mount();
     }
     // space for the button
-    #translate([0,-magnet[2]-wall,-screw_length]) cube([magnet[0]+wall*2, button_height, screw_length]);
+    translate([0,-magnet[2]-wall,-screw_length]) cube([magnet[0]+wall*2, button_height, screw_length]);
 }
 
 // Solid body, from which we will cut pieces out
