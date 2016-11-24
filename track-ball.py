@@ -4,10 +4,11 @@ import argparse
 import imutils
 import cv2
 import sys
-
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-src', '--src', help='Input video', required=True)
+parser.add_argument('-out', '--out', help='Output video', required=False)
 parser.add_argument('-stage', help='Override stages of the game (right flipper, left flipper, gameplay) by supplying frame numbers (100,500,1000)', required=True)
 args = parser.parse_args()
 
@@ -27,6 +28,12 @@ pts = deque(maxlen=255)
 camera = cv2.VideoCapture(args.src)
 fgbg = cv2.bgsegm.createBackgroundSubtractorGMG()
 
+# Saving output for further analysis, if output is specified
+if (args.out):
+    os.remove(args.out)
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    out = cv2.VideoWriter(args.out, fourcc, 10.0, (640, 426))
+
 # keep looping
 frameNumber = 0
 currentStage = -1
@@ -44,14 +51,15 @@ while True:
     # resize the frame, blur it, and convert it to the HSV
     # color space
     # frame = imutils.resize(frame, width=600)
-    # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # construct a mask for the color "green", then perform
     # a series of dilations and erosions to remove any small
     # blobs left in the mask
-    mask = fgbg.apply(frame)
+    mask = fgbg.apply(blurred)
     # mask=cv2.inRange(hsv, greenLower, greenUpper)
+    mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
     (_, cnts, _) = cv2.findContours(mask.copy(),
                                     cv2.RETR_EXTERNAL,
@@ -71,6 +79,8 @@ while True:
     cv2.imshow("Original", frame)
     # show the frame to our screen
     cv2.imshow("Frame", mask)
+    if (args.out):
+        out.write(frame)
     key = cv2.waitKey(1) & 0xFF
 
     # if the 'q' key is pressed, stop the loop
@@ -79,4 +89,5 @@ while True:
 
 # cleanup the camera and close any open windows
 camera.release()
+out.release()
 cv2.destroyAllWindows()
