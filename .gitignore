@@ -7,3 +7,6 @@ tmp/**/*
 !.keep
 
 .virtualenv
+*.s#*
+*.lck
+*.b#*
