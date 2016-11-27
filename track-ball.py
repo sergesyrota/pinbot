@@ -12,10 +12,10 @@ from communication.arduino import Arduino
 parser = argparse.ArgumentParser()
 parser.add_argument('-src', '--src', help='Input video', required=True)
 parser.add_argument('-out', '--out', help='Output video', required=False)
-parser.add_argument('-port',
+parser.add_argument('-port', '--port',
                     help='Serial communication port for Arduino',
                     required=False)
-parser.add_argument('-stage',
+parser.add_argument('-stage', '--stage',
                     help='''Override stages of the game (right flipper, left
                         flipper, gameplay) by supplying frame numbers (100,
                         500, 1000)''',
