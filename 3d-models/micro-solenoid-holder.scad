@@ -4,6 +4,8 @@ wall=1.5;
 magnet=[4,11,2.5];
 // Number of magnets to build side by side, for added strength
 num_magnets=2;
+// Extra padding on top of magnet housing to make it harder to disconnect from the surface
+magnet_extra_leverage=10;
 // Coordinates of mounting holes, relative to a full solenoid frame
 screw_mounts=[[2,3.8], [8,13.6]];
 // Pinball button
@@ -62,7 +64,7 @@ module body() {
         contact_adjustment=solenoid_travel_offset-screw_adjustment/2;
         rotate([90,0,0]) 
             translate([0,0,-contact_adjustment]) 
-            cube([structure_width, magnet[1]+wall*2, magnet[2]+wall+contact_adjustment]);
+            cube([structure_width, magnet_extra_leverage+magnet[1]+wall*2, magnet[2]+wall+contact_adjustment]);
     }
 }
 
