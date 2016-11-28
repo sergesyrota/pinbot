@@ -1,7 +1,7 @@
 import serial
 
 
-class Arduino:
+class Arduino(object):
     serial = None
 
     def __init__(self, port, baud=115200):
