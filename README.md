@@ -14,6 +14,6 @@ cd path/to/pinbot
 virtualenv -p `which python` .virtualenv
 source .virtualenv/bin/activate
 
-pip install numpy imutils
+pip install numpy imutils pyserial
 
 ```
