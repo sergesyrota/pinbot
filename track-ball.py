@@ -7,7 +7,7 @@ import imutils
 import cv2
 import sys
 import os
-from communication import arduino
+from communication.arduino import Arduino
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-src', '--src', help='Input video', required=True)
