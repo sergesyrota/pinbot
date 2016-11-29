@@ -3,3 +3,5 @@ imutils==0.3.6
 pep8==1.7.0
 pyserial==2.7
 virtualenv==15.1.0
+ipython==5.0.0
+ipdb==0.10.1

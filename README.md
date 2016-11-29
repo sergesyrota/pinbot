@@ -17,3 +17,11 @@ source .virtualenv/bin/activate
 pip install -r requirements.txt
 
 ```
+
+### Debugging
+
+For debugging place following in the code:
+
+```python
+import ipdb; ipdb.set_trace()
+```
