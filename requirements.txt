@@ -1,0 +1,5 @@
+numpy==1.11.2
+imutils==0.3.6
+pep8==1.7.0
+pyserial==2.7
+virtualenv==15.1.0
