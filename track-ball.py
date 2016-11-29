@@ -15,12 +15,19 @@ parser.add_argument('--src', help='Input video', required=True)
 parser.add_argument('--out', help='Output video', required=False)
 parser.add_argument('--port',
                     help='Serial communication port for Arduino',
+                    default='/dev/null',
                     required=False)
 parser.add_argument('--stage',
                     help='''Override stages of the game (right flipper, left
                         flipper, gameplay) by supplying frame numbers (100,
                         500, 1000)''',
                     required=True)
+parser.add_argument('--cooldown',
+                    help='''Cooldown time after flipper pressed
+                        (to prevent feedback loops and not to overheat coil)
+                        Has to be greater than time flipper will stay pressed.''',
+                    default=300,
+                    required=False)
 args = parser.parse_args()
 
 
@@ -28,11 +35,26 @@ def getSecondsString(timedelta):
     return "{}.{:03d}".format(timedelta.seconds, timedelta.microseconds/1000)
 
 
+class State:
+    # timestamp of program start
+    time_start = 0
+    # Timestamp of when we finished processing the frame
+    time_processing_ended = 0
+    # Timestamp of when we finished capturing a frame
+    time_captured = 0
+    # Timestamp of when command to press button was last sent
+    # Needed to track flipper location for training and to prevent feedback loops from own movement
+    time_press_a = 0
+    time_press_b = 0
+
+    flipper_a_trained = False
+    flipper_b_trained = False
+
+    # Tracking frame numbers, possibly useful in training on video...
+    frame_number = 0
+
 stages = map(int, args.stage.split(','))
 print stages
-
-# list of tracked points
-pts = deque(maxlen=255)
 
 # Webcam
 # camera = cv2.VideoCapture(0)
@@ -50,22 +72,24 @@ if (args.out):
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
     out = cv2.VideoWriter(args.out, fourcc, 10.0, (640, 426))
 
-# keep looping
-frameNumber = 0
+# Keep track of current state in this object
+state = State()
+# arduino = Arduino(args.port)
+state.time_start = state.time_processing_ended = datetime.now()
 currentStage = -1
-startTime = processingEndTime = datetime.now()
 while True:
-    frameNumber = frameNumber+1
+    state.frame_number = state.frame_number+1
     # grab the current frame
     (grabbed, frame) = camera.read()
-    frameCapturedTime = datetime.now()
+    state.time_captured = datetime.now()
     # if we are viewing a video and we did not grab a frame,
     # then we have reached the end of the video
     if not grabbed:
         break
 
-    print("%d =========================" % frameNumber)
-
+    print("%d =========================" % state.frame_number)
+    # Detection works better on a blurred frame
+    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     mask = fgbg.apply(blurred)
     mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
@@ -84,13 +108,13 @@ while True:
         print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     # Processing END timeframe
-    cv2.putText(frame, getSecondsString(frameCapturedTime-startTime),
+    cv2.putText(frame, getSecondsString(state.time_captured-state.time_start),
                 (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame, "Capture: {}s".format(getSecondsString(frameCapturedTime-processingEndTime)),
+    cv2.putText(frame, "Capture: {}s".format(getSecondsString(state.time_captured-state.time_processing_ended)),
                 (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
-    processingEndTime = datetime.now()
-    cv2.putText(frame, "Processing: {}s".format(getSecondsString(processingEndTime-frameCapturedTime)),
+    state.time_processing_ended = datetime.now()
+    cv2.putText(frame, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)),
                 (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # Show original on the screen
     cv2.imshow("Original", frame)
