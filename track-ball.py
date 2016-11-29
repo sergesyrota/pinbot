@@ -65,17 +65,8 @@ while True:
         break
 
     print("%d =========================" % frameNumber)
-    # resize the frame, blur it, and convert it to the HSV
-    # color space
-    # frame = imutils.resize(frame, width=600)
-    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-    # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # construct a mask for the color "green", then perform
-    # a series of dilations and erosions to remove any small
-    # blobs left in the mask
     mask = fgbg.apply(blurred)
-    # mask=cv2.inRange(hsv, greenLower, greenUpper)
     mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
     (_, cnts, _) = cv2.findContours(mask.copy(),
@@ -93,10 +84,14 @@ while True:
         print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     # Processing END timeframe
-    cv2.putText(frame, getSecondsString(frameCapturedTime-startTime), (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame, "Capture: {}s".format(getSecondsString(frameCapturedTime-processingEndTime)), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame, getSecondsString(frameCapturedTime-startTime),
+                (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame, "Capture: {}s".format(getSecondsString(frameCapturedTime-processingEndTime)),
+                (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
     processingEndTime = datetime.now()
-    cv2.putText(frame, "Processing: {}s".format(getSecondsString(processingEndTime-frameCapturedTime)), (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame, "Processing: {}s".format(getSecondsString(processingEndTime-frameCapturedTime)),
+                (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # Show original on the screen
     cv2.imshow("Original", frame)
     # show the frame to our screen
