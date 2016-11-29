@@ -7,6 +7,7 @@ import imutils
 import cv2
 import sys
 import os
+from datetime import datetime
 from communication.arduino import Arduino
 
 parser = argparse.ArgumentParser()
@@ -21,6 +22,11 @@ parser.add_argument('--stage',
                         500, 1000)''',
                     required=True)
 args = parser.parse_args()
+
+
+def getSecondsString(timedelta):
+    return "{}.{:03d}".format(timedelta.seconds, timedelta.microseconds/1000)
+
 
 stages = map(int, args.stage.split(','))
 print stages
@@ -47,11 +53,12 @@ if (args.out):
 # keep looping
 frameNumber = 0
 currentStage = -1
+startTime = processingEndTime = datetime.now()
 while True:
     frameNumber = frameNumber+1
     # grab the current frame
     (grabbed, frame) = camera.read()
-
+    frameCapturedTime = datetime.now()
     # if we are viewing a video and we did not grab a frame,
     # then we have reached the end of the video
     if not grabbed:
@@ -85,10 +92,15 @@ while True:
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
+    # Processing END timeframe
+    cv2.putText(frame, getSecondsString(frameCapturedTime-startTime), (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame, "Capture: {}s".format(getSecondsString(frameCapturedTime-processingEndTime)), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    processingEndTime = datetime.now()
+    cv2.putText(frame, "Processing: {}s".format(getSecondsString(processingEndTime-frameCapturedTime)), (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # Show original on the screen
     cv2.imshow("Original", frame)
     # show the frame to our screen
-    cv2.imshow("Frame", mask)
+    # cv2.imshow("Frame", mask)
     if (args.out):
         out.write(frame)
     key = cv2.waitKey(1) & 0xFF
