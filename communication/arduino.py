@@ -19,6 +19,9 @@ class Arduino(object):
     def shortPressB(self):
         serial.write('b')
 
-    def __del__(self):
+    def close(self):
         if (serial):
             serial.close()
+
+    def __del__(self):
+        self.close()
