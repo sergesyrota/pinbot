@@ -7,8 +7,9 @@ import imutils
 import cv2
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from communication.arduino import Arduino
+from time import sleep
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video', required=True)
@@ -23,7 +24,7 @@ parser.add_argument('--stage',
                         500, 1000)''',
                     required=True)
 parser.add_argument('--cooldown',
-                    help='''Cooldown time after flipper pressed
+                    help='''Cooldown time (milliseconds) after flipper pressed
                         (to prevent feedback loops and not to overheat coil)
                         Has to be greater than time flipper will stay pressed.''',
                     default=300,
@@ -44,8 +45,8 @@ class State:
     time_captured = 0
     # Timestamp of when command to press button was last sent
     # Needed to track flipper location for training and to prevent feedback loops from own movement
-    time_press_a = 0
-    time_press_b = 0
+    time_press_a = datetime.now()
+    time_press_b = datetime.now()
 
     flipper_a_trained = False
     flipper_b_trained = False
@@ -98,10 +99,26 @@ while True:
         continue
     mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
-    (_, cnts, _) = cv2.findContours(mask.copy(),
-                                    cv2.RETR_EXTERNAL,
-                                    cv2.CHAIN_APPROX_SIMPLE)
-    for c in cnts:
+    (_, contours, _) = cv2.findContours(mask.copy(),
+                                        cv2.RETR_EXTERNAL,
+                                        cv2.CHAIN_APPROX_SIMPLE)
+    if not(state.flipper_a_trained):
+        frame_text.append("Training A")
+        # Check if flipper was pressed to add contours
+        delta = datetime.now() - state.time_press_a
+        if (delta < timedelta(milliseconds=100)):
+            print("flipper_a.add_contours(contours)")
+        elif (delta > timedelta(milliseconds=args.cooldown)):
+            arduino.shortPressA()
+            state.time_press_a = datetime.now()
+            frame_text.append("Short press A")
+            sleep(0.01)  # Sleep 10ms to allow circuitry to trigger properly
+    elif not(state.flipper_b_trained):
+        frame_text.append("Training B")
+    else:
+        frame_text.append("Game")
+
+    for c in contours:
         # if the contour is too small, ignore it
         if cv2.contourArea(c) < 80:
             continue
