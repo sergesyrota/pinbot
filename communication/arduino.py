@@ -8,20 +8,20 @@ class Arduino(object):
         self.serial = serial.Serial(port, baud)
 
     def longPressA(self):
-        serial.write('A')
+        self.serial.write('A')
 
     def shortPressA(self):
-        serial.write('a')
+        self.serial.write('a')
 
     def longPressB(self):
-        serial.write('B')
+        self.serial.write('B')
 
     def shortPressB(self):
-        serial.write('b')
+        self.serial.write('b')
 
     def close(self):
-        if (serial):
-            serial.close()
+        if (self.serial):
+            self.serial.close()
 
     def __del__(self):
         self.close()
