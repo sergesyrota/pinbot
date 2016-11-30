@@ -25,3 +25,12 @@ For debugging place following in the code:
 ```python
 import ipdb; ipdb.set_trace()
 ```
+
+For debugging serial communication:
+
+```
+$ socat -d -d pty,raw,echo=0 pty,raw,echo=0
+2016/11/29 08:41:25 socat[43296] N PTY is /dev/ttys003
+2016/11/29 08:41:25 socat[43296] N PTY is /dev/ttys004
+```
+This will create forwarding between 2 serial interfaces. Then you can write into one, and read from another.

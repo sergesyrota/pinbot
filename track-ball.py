@@ -74,10 +74,11 @@ if (args.out):
 
 # Keep track of current state in this object
 state = State()
-# arduino = Arduino(args.port)
+arduino = Arduino(args.port)
 state.time_start = state.time_processing_ended = datetime.now()
 currentStage = -1
 while True:
+    frame_text = []
     state.frame_number = state.frame_number+1
     # grab the current frame
     (grabbed, frame) = camera.read()
@@ -88,9 +89,13 @@ while True:
         break
 
     print("%d =========================" % state.frame_number)
+
     # Detection works better on a blurred frame
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     mask = fgbg.apply(blurred)
+    # It takes 120 frames to train background subtraction
+    if (state.frame_number < 121):
+        continue
     mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
     (_, cnts, _) = cv2.findContours(mask.copy(),
@@ -108,14 +113,14 @@ while True:
         print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     # Processing END timeframe
-    cv2.putText(frame, getSecondsString(state.time_captured-state.time_start),
-                (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame, "Capture: {}s".format(getSecondsString(state.time_captured-state.time_processing_ended)),
-                (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    frame_text.insert(0, "{:06d} {}".format(state.frame_number, getSecondsString(state.time_captured-state.time_start)))
+    frame_text.insert(1, "Capture: {}s".format(getSecondsString(state.time_captured-state.time_processing_ended)))
     # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
     state.time_processing_ended = datetime.now()
-    cv2.putText(frame, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)),
-                (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)))
+    for i, line in enumerate(frame_text):
+        y = 21 + i*20
+        cv2.putText(frame, line, (1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # Show original on the screen
     cv2.imshow("Original", frame)
     # show the frame to our screen
