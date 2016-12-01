@@ -14,15 +14,12 @@ from time import sleep
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video', required=True)
 parser.add_argument('--out', help='Output video', required=False)
+parser.add_argument('--show', help='Show live video (with annotations) on the screen in real time',
+                    required=False, const=True, action='store_const')
 parser.add_argument('--port',
                     help='Serial communication port for Arduino',
                     default='/dev/null',
                     required=False)
-parser.add_argument('--stage',
-                    help='''Override stages of the game (right flipper, left
-                        flipper, gameplay) by supplying frame numbers (100,
-                        500, 1000)''',
-                    required=True)
 parser.add_argument('--cooldown',
                     help='''Cooldown time (milliseconds) after flipper pressed
                         (to prevent feedback loops and not to overheat coil)
@@ -53,9 +50,6 @@ class State:
 
     # Tracking frame numbers, possibly useful in training on video...
     frame_number = 0
-
-stages = map(int, args.stage.split(','))
-print stages
 
 # Webcam
 # camera = cv2.VideoCapture(0)
@@ -135,11 +129,13 @@ while True:
     # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
     state.time_processing_ended = datetime.now()
     frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)))
-    for i, line in enumerate(frame_text):
-        y = 21 + i*20
-        cv2.putText(frame, line, (1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    if (args.show or args.out):
+        for i, line in enumerate(frame_text):
+            y = 21 + i*20
+            cv2.putText(frame, line, (1, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     # Show original on the screen
-    cv2.imshow("Original", frame)
+    if (args.show):
+        cv2.imshow("Original", frame)
     # show the frame to our screen
     # cv2.imshow("Frame", mask)
     if (args.out):
@@ -152,5 +148,6 @@ while True:
 
 # cleanup the camera and close any open windows
 camera.release()
-out.release()
+if (args.out):
+    out.release()
 cv2.destroyAllWindows()
