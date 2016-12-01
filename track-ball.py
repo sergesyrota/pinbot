@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 from collections import deque
 import numpy as np
 import argparse
@@ -47,6 +48,8 @@ class State:
 
     flipper_a_trained = False
     flipper_b_trained = False
+    # Set this to True after a frame with flipper contour was sent. Reverse to False when we press flipper button.
+    flipper_countour_sent = False
 
     # Tracking frame numbers, possibly useful in training on video...
     frame_number = 0
@@ -83,8 +86,6 @@ while True:
     if not grabbed:
         break
 
-    print("%d =========================" % state.frame_number)
-
     # Detection works better on a blurred frame
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     mask = fgbg.apply(blurred)
@@ -98,30 +99,37 @@ while True:
                                         cv2.CHAIN_APPROX_SIMPLE)
     if not(state.flipper_a_trained):
         frame_text.append("Training A")
+        print("\rTraining A                 ", end="")
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_a
-        if (delta < timedelta(milliseconds=100)):
+        if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
             print("flipper_a.add_contours(contours)")
+            state.flipper_countour_sent = True
+            print("state.flipper_a_trained = flipper_a.train()")
         elif (delta > timedelta(milliseconds=args.cooldown)):
             arduino.shortPressA()
             state.time_press_a = datetime.now()
+            state.flipper_countour_sent = False
             frame_text.append("Short press A")
             sleep(0.01)  # Sleep 10ms to allow circuitry to trigger properly
     elif not(state.flipper_b_trained):
+        print("\rTraining B                 ", end="")
         frame_text.append("Training B")
     else:
+        print("\rGame in progress                 ", end="")
         frame_text.append("Game")
 
-    for c in contours:
-        # if the contour is too small, ignore it
-        if cv2.contourArea(c) < 80:
-            continue
+    # Draw contours we find on the original frame, for debugging
+    if (args.show or args.out):
+        for c in contours:
+            # if the contour is too small, ignore it
+            if cv2.contourArea(c) < 80:
+                continue
 
-        # compute the bounding box for the contour, draw it on the frame,
-        # and update the text
-        (x, y, w, h) = cv2.boundingRect(c)
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
+            # compute the bounding box for the contour, draw it on the frame
+            (x, y, w, h) = cv2.boundingRect(c)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            # print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     # Processing END timeframe
     frame_text.insert(0, "{:06d} {}".format(state.frame_number, getSecondsString(state.time_captured-state.time_start)))
@@ -136,8 +144,8 @@ while True:
     # Show original on the screen
     if (args.show):
         cv2.imshow("Original", frame)
-    # show the frame to our screen
-    # cv2.imshow("Frame", mask)
+        # show the frame to our screen
+        # cv2.imshow("Frame", mask)
     if (args.out):
         out.write(frame)
     key = cv2.waitKey(1) & 0xFF
