@@ -34,3 +34,11 @@ $ socat -d -d pty,raw,echo=0 pty,raw,echo=0
 2016/11/29 08:41:25 socat[43296] N PTY is /dev/ttys004
 ```
 This will create forwarding between 2 serial interfaces. Then you can write into one, and read from another.
+
+Flipper detect frame numbers:
+
+When we want to train flipper on recorded video, we need to know frame numbers that can be considered as "pressing
+the button." Both arguments need to be passed (otherwise it doesn't make much sense).
+
+--debug-right 243,271,314,346,378,410,442,472,518
+--debug-left 590,621,653,686,718,749,781

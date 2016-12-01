@@ -27,6 +27,12 @@ parser.add_argument('--cooldown',
                         Has to be greater than time flipper will stay pressed.''',
                     default=300,
                     required=False)
+parser.add_argument('--debug-right',
+                    help='Frame numbers of right flipper detection contours for training on video (comma separated)',
+                    required=False)
+parser.add_argument('--debug-left',
+                    help='Frame numbers of left flipper detection contours for training on video (comma separated)',
+                    required=False)
 args = parser.parse_args()
 
 
@@ -106,8 +112,11 @@ while True:
             print("flipper_a.add_contours(contours)")
             state.flipper_countour_sent = True
             print("state.flipper_a_trained = flipper_a.train()")
-        elif (delta > timedelta(milliseconds=args.cooldown)):
-            arduino.shortPressA()
+        # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
+        elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
+              (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
+            if (not(args.debug_right)):
+                arduino.shortPressA()
             state.time_press_a = datetime.now()
             state.flipper_countour_sent = False
             frame_text.append("Short press A")
