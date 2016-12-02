@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta
 from communication.arduino import Arduino
 from time import sleep
+from flipper import Flipper
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video', required=True)
@@ -81,6 +82,10 @@ state = State()
 arduino = Arduino(args.port)
 state.time_start = state.time_processing_ended = datetime.now()
 currentStage = -1
+
+flipper_a = Flipper(name='rigth')
+flipper_b = Flipper(name='left')
+
 while True:
     frame_text = []
     state.frame_number = state.frame_number+1
@@ -109,9 +114,10 @@ while True:
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_a
         if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
-            print("flipper_a.add_contours(contours)")
+            for c in contours:
+                flipper_a.add_contour(c)
             state.flipper_countour_sent = True
-            print("state.flipper_a_trained = flipper_a.train()")
+            state.flipper_a_trained = flipper_a.train()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
@@ -127,9 +133,10 @@ while True:
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_b
         if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
-            print("flipper_b.add_contours(contours)")
+            for c in contours:
+                flipper_b.add_contour(c)
             state.flipper_countour_sent = True
-            print("state.flipper_b_trained = flipper_b.train()")
+            state.flipper_b_trained = flipper_b.train()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
