@@ -149,9 +149,30 @@ while True:
     else:
         print("\rGame in progress                 ", end="")
         frame_text.append("Game")
+        for c in contours:
+            # Check if object intersects with flipper A, and fire flipper, if necessary
+            # Make sure to wait for cooldown, if it was fired recently
+            if (flipper_a.check(c) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
+                if (not(args.debug_right)):
+                    arduino.shortPressA()
+                state.time_press_a = datetime.now()
+                frame_text.append("Short press A")
+            if (flipper_b.check(c) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
+                if (not(args.debug_right)):
+                    arduino.shortPressB()
+                state.time_press_b = datetime.now()
+                frame_text.append("Short press B")
 
     # Draw contours we find on the original frame, for debugging
     if (args.show or args.out):
+        # Draw contours that define target area from flippers
+        if (state.flipper_a_trained):
+            for r in flipper_a.effective_areas:
+                cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 0, 0), 2)
+        if (state.flipper_b_trained):
+            for r in flipper_b.effective_areas:
+                cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 0, 0), 2)
+        # Draw all countours currently found in the frame.
         for c in contours:
             # if the contour is too small, ignore it
             if cv2.contourArea(c) < 80:
