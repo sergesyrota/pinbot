@@ -122,8 +122,23 @@ while True:
             frame_text.append("Short press A")
             sleep(0.01)  # Sleep 10ms to allow circuitry to trigger properly
     elif not(state.flipper_b_trained):
-        print("\rTraining B                 ", end="")
         frame_text.append("Training B")
+        print("\rTraining B                 ", end="")
+        # Check if flipper was pressed to add contours
+        delta = datetime.now() - state.time_press_b
+        if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
+            print("flipper_b.add_contours(contours)")
+            state.flipper_countour_sent = True
+            print("state.flipper_b_trained = flipper_b.train()")
+        # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
+        elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
+              (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
+            if (not(args.debug_left)):
+                arduino.shortPressB()
+            state.time_press_b = datetime.now()
+            state.flipper_countour_sent = False
+            frame_text.append("Short press B")
+            sleep(0.01)  # Sleep 10ms to allow circuitry to trigger properly
     else:
         print("\rGame in progress                 ", end="")
         frame_text.append("Game")

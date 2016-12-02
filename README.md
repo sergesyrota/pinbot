@@ -40,5 +40,7 @@ Flipper detect frame numbers:
 When we want to train flipper on recorded video, we need to know frame numbers that can be considered as "pressing
 the button." Both arguments need to be passed (otherwise it doesn't make much sense).
 
---debug-right 243,271,314,346,378,410,442,472,518
---debug-left 590,621,653,686,718,749,781
+```
+--debug-right 244,273,316,349,381,413,445,476,522
+--debug-left 594,626,658,691,723,755,787
+```
