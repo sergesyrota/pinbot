@@ -1,4 +1,5 @@
 #include "config.h"
+#include "DigitalWriteFast.h"
 
 bool aButtonState;
 bool bButtonState;
@@ -7,8 +8,8 @@ void setup() {
   pinMode(A_INPUT, INPUT_PULLUP);
   pinMode(B_INPUT, INPUT_PULLUP);
 
-  pinMode(A_OUTPUT, OUTPUT);
-  pinMode(B_OUTPUT, OUTPUT);
+  pinModeFast(A_OUTPUT, OUTPUT);
+  pinModeFast(B_OUTPUT, OUTPUT);
 
   Serial.begin(115200);
 }
@@ -31,7 +32,9 @@ void loop() {
         break;
       default:
         // Do nothing, just ignore
+        break;
     }
+      Serial.write(c);
   }
 
   bool button;
@@ -55,7 +58,7 @@ void loop() {
 }
 
 void engage(int pin, unsigned int length) {
-  digitalWrite(pin, HIGH);
+  digitalWriteFast(pin, HIGH);
   delay(length);
-  digitalWrite(pin, LOW);
+  digitalWriteFast(pin, LOW);
 }

@@ -7,7 +7,7 @@
 #define B_INPUT 7
 #define B_OUTPUT 12
 
-#define LONG_ENGAGE_MS 250
+#define LONG_ENGAGE_MS 300
 #define SHORT_ENGAGE_MS 100
 
 #endif
