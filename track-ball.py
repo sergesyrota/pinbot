@@ -14,7 +14,7 @@ from time import sleep
 from flipper import Flipper
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--src', help='Input video', required=True)
+parser.add_argument('--src', help='Input video, either a path to a file, or camera number', required=True)
 parser.add_argument('--out', help='Output video', required=False)
 parser.add_argument('--show', help='Show live video (with annotations) on the screen in real time',
                     required=False, const=True, action='store_const')
@@ -65,14 +65,17 @@ class State:
     # Tracking frame numbers, possibly useful in training on video...
     frame_number = 0
 
-# Webcam
-camera = cv2.VideoCapture(1)
-camera.set(3, 320) # width
-camera.set(4, 240) # height
-camera.set(5, 60.0) # fps
 
-# Video file
-# camera = cv2.VideoCapture(args.src)
+if (os.path.isfile(args.src)):
+    # Video file
+    camera = cv2.VideoCapture(args.src)
+else:
+    # Webcam
+    camera = cv2.VideoCapture(int(args.src))
+    camera.set(3, 320)  # width
+    camera.set(4, 240)  # height
+    camera.set(5, 60.0)  # fps
+
 # fgbg = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
 fgbg = cv2.bgsegm.createBackgroundSubtractorMOG(10, 10)
 
