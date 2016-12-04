@@ -32,6 +32,11 @@ parser.add_argument('--cooldown',
                         Has to be greater than time flipper will stay pressed.''',
                     default=300, type=int,
                     required=False)
+parser.add_argument('--latency',
+                    help='''Flipper latency (milliseconds). How long will it pass since the frame capture time where
+                        we decide to press the button to it actually firing''',
+                    default=60, type=int,
+                    required=False)
 parser.add_argument('--debug-right',
                     help='Frame numbers of right flipper detection contours for training on video (comma separated)',
                     required=False)
@@ -81,9 +86,10 @@ fgbg = cv2.bgsegm.createBackgroundSubtractorMOG(10, 10)
 
 # Saving output for further analysis, if output is specified
 if (args.out):
-    os.remove(args.out)
+    if (os.path.isfile(args.out)):
+        os.remove(args.out)
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
-    out = cv2.VideoWriter(args.out, fourcc, 10.0, (640, 420))
+    out = cv2.VideoWriter(args.out, fourcc, 10.0, (int(camera.get(3)), int(camera.get(4))))
 
 # Keep track of current state in this object
 state = State()
@@ -104,6 +110,15 @@ while True:
     # then we have reached the end of the video
     if not grabbed:
         break
+
+    # If we're in training mode, might need to skip a frame or two for flipper to react and background subtractor to
+    # find affected areas
+    # And we should not do it in debug mode, as it's skipping a lot of frames...
+    if (not(args.debug_right or args.debug_left) and
+        not(state.flipper_a_trained and state.flipper_b_trained) and
+        not(state.flipper_countour_sent) and
+       (datetime.now() - max(state.time_press_a, state.time_press_b)) < timedelta(milliseconds=args.latency)):
+        continue
 
     # Detection works better on a blurred frame
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
@@ -134,7 +149,6 @@ while True:
             state.time_press_a = datetime.now()
             state.flipper_countour_sent = False
             frame_text.append("Short press A")
-            sleep(0.05)  # Sleep 10ms to allow circuitry to trigger properly
     elif not(state.flipper_b_trained):
         frame_text.append("Training B")
         print("\rTraining B                 ", end="")
@@ -153,7 +167,6 @@ while True:
             state.time_press_b = datetime.now()
             state.flipper_countour_sent = False
             frame_text.append("Short press B")
-            sleep(0.05)  # Sleep 10ms to allow circuitry to trigger properly
     else:
         print("\rGame in progress                 ", end="")
         frame_text.append("Game")
