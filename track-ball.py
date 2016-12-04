@@ -142,7 +142,7 @@ while True:
             state.flipper_countour_sent = True
             state.flipper_a_trained = flipper_a.train()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
-        elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown*3)) or  # < this is based on action
+        elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
             if (not(args.debug_right)):
                 arduino.shortPressA()
@@ -160,7 +160,7 @@ while True:
             state.flipper_countour_sent = True
             state.flipper_b_trained = flipper_b.train()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
-        elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown*3)) or  # < this is based on action
+        elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
             if (not(args.debug_left)):
                 arduino.shortPressB()
