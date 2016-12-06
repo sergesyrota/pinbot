@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from communication.arduino import Arduino
 from time import sleep
 from flipper import Flipper
+from predictor_bruteforce import Bruteforce
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video, either a path to a file, or camera number', required=True)
@@ -81,8 +82,8 @@ else:
     camera.set(4, 240)  # height
     camera.set(5, 60.0)  # fps
 
-# fgbg = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
-fgbg = cv2.bgsegm.createBackgroundSubtractorMOG(10, 10)
+fgbg = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
+#fgbg = cv2.bgsegm.createBackgroundSubtractorMOG(10, 10)
 
 # Saving output for further analysis, if output is specified
 if (args.out):
@@ -99,7 +100,11 @@ currentStage = -1
 
 flipper_a = Flipper(name='rigth')
 flipper_b = Flipper(name='left')
-
+predictor = Bruteforce(
+    min_area=int(camera.get(3)*camera.get(4)/20000),
+    max_area=int(camera.get(3)*camera.get(4)/300),
+    max_speed=max(camera.get(3), camera.get(4))/1000.0  # Limit speed to 10% of the frame in 100 ms
+)
 while True:
     frame_text = []
     state.frame_number = state.frame_number+1
@@ -126,11 +131,18 @@ while True:
     # It takes 120 frames to train background subtraction
     if (state.frame_number < args.training_frames+2):
         continue
-    # mask = cv2.erode(mask, None, iterations=3)
+    mask = cv2.erode(mask, None, iterations=3)
     mask = cv2.dilate(mask, None, iterations=1)
     (_, contours, _) = cv2.findContours(mask.copy(),
                                         cv2.RETR_EXTERNAL,
                                         cv2.CHAIN_APPROX_SIMPLE)
+    # BEGIN HACK
+    predictor.add_contours(contours, state.time_captured)
+    for l in predictor.get_lines():
+        cv2.line(frame, l['past'], l['present'], (0, 0, 255))
+        cv2.circle(frame, l['future'], 4, (255, 255, 0), 2)
+    # END HACK
+
     if not(state.flipper_a_trained):
         frame_text.append("Training A")
         print("\rTraining A                 ", end="")
@@ -224,7 +236,7 @@ while True:
     if (args.show):
         cv2.imshow("Original", frame)
         # show the frame to our screen
-        cv2.imshow("Frame", mask)
+        # cv2.imshow("Frame", mask)
     if (args.out):
         out.write(frame)
     key = cv2.waitKey(1) & 0xFF
