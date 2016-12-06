@@ -16,36 +16,64 @@ class Bruteforce(object):
         self.contour_sets = []
 
     def add_contours(self, contours, time):
-        self.contour_sets.insert(0, {"time": time, "contours": contours})
+        filtered_contours = []
+        for c in contours:
+            if (cv2.contourArea(c) < self.min_area or cv2.contourArea(c) > self.max_area):
+                continue
+            filtered_contours.append({
+                "contour": c,
+                "center": self.get_center_of_mass(c),
+                "area": cv2.contourArea(c)
+            })
+        self.contour_sets.insert(0, {"time": time, "contours": filtered_contours})
         if (len(self.contour_sets) > 2):
             # Remove oldest element and discard it, as we're only tracking 2 latest sets
             self.contour_sets.pop()
 
     # future defines how many milliseconds in the future we want to find the object
-    def get_lines(self, future=60):
+    # timing_error defines +/- range to apply for future prediction. E.g. 0.1 means +/- 10%, so 60 becomes 54-66ms
+    def get_lines(self, future=60, timing_error=0.3):
         if (len(self.contour_sets) < 2):
             return iter(())
         # time difference between lines
         delta = (self.contour_sets[0]["time"] - self.contour_sets[1]["time"]).microseconds
         lines = []
         for i in self.contour_sets[0]['contours']:
-            if (cv2.contourArea(i) < self.min_area or cv2.contourArea(i) > self.max_area):
-                continue
-            i_coords = self.get_center_of_mass(i)
             for j in self.contour_sets[1]['contours']:
-                if (cv2.contourArea(j) < self.min_area or cv2.contourArea(j) > self.max_area):
-                    continue
-                j_coords = self.get_center_of_mass(j)
-                futureX = self.get_future(past=j_coords[0], present=i_coords[0], delta_micros=delta, future_ms=future)
-                futureY = self.get_future(past=j_coords[1], present=i_coords[1], delta_micros=delta, future_ms=future)
-                speed = self.get_speed(past=j_coords, present=i_coords, millis=delta/1000.0)
+                speed = self.get_speed(past=j['center'], present=i['center'], millis=delta/1000.0)
                 if (speed>self.max_speed):
                     # print("Speed is too high: %.06f (limit: %.06f)" % (speed, self.max_speed))
                     continue
+                future_x_min = self.get_future(
+                    past=j['center'][0],
+                    present=i['center'][0],
+                    delta_micros=delta,
+                    future_ms=future*(1.0-timing_error)
+                )
+                future_y_min = self.get_future(
+                    past=j['center'][1],
+                    present=i['center'][1],
+                    delta_micros=delta,
+                    future_ms=future*(1.0-timing_error)
+                )
+                future_x_max = self.get_future(
+                    past=j['center'][0],
+                    present=i['center'][0],
+                    delta_micros=delta,
+                    future_ms=future*(1.0+timing_error)
+                )
+                future_y_max = self.get_future(
+                    past=j['center'][1],
+                    present=i['center'][1],
+                    delta_micros=delta,
+                    future_ms=future*(1.0+timing_error)
+                )
                 lines.append({
-                    'past': i_coords,
-                    'present': j_coords,
-                    'future': (futureX, futureY)
+                    'past': i['center'],
+                    'present': j['center'],
+                    'present_area': j['area'],
+                    'future_min': (future_x_min, future_y_min),
+                    'future_max': (future_x_max, future_y_max)
                 })
         return lines
 

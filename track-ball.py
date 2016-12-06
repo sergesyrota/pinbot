@@ -101,9 +101,9 @@ currentStage = -1
 flipper_a = Flipper(name='rigth')
 flipper_b = Flipper(name='left')
 predictor = Bruteforce(
-    min_area=int(camera.get(3)*camera.get(4)/20000),
-    max_area=int(camera.get(3)*camera.get(4)/300),
-    max_speed=max(camera.get(3), camera.get(4))/1000.0  # Limit speed to 10% of the frame in 100 ms
+    min_area=int(camera.get(3)*camera.get(4)/4000),
+    max_area=int(camera.get(3)*camera.get(4)/20),  # Looks like max area does not make sense to define
+    max_speed=max(camera.get(3), camera.get(4))/500.0  # Limit speed to 10% of the frame in 50 ms
 )
 while True:
     frame_text = []
@@ -140,7 +140,9 @@ while True:
     predictor.add_contours(contours, state.time_captured)
     for l in predictor.get_lines():
         cv2.line(frame, l['past'], l['present'], (0, 0, 255))
-        cv2.circle(frame, l['future'], 4, (255, 255, 0), 2)
+        cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
+        # This can be used to troubleshoot filter by areas
+        # cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     # END HACK
 
     if not(state.flipper_a_trained):
