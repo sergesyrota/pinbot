@@ -15,20 +15,19 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available() > 0) {
+  if (Serial.available() > 1) {
+    // Protocol: 1st byte: a or b, for one of the outputs.
+    //           2nd byte: how long to hold the button (in 10 ms increments, e.g. 3 = 30ms)
     char c = Serial.read();
+    unsigned int delay = Serial.read() * 10;
     switch (c) {
-      case 'a':
-        engage(A_OUTPUT, SHORT_ENGAGE_MS);
-        break;
+      case 'a': // Fall through on purpose
       case 'A':
-        engage(A_OUTPUT, LONG_ENGAGE_MS);
+        engage(A_OUTPUT, delay);
         break;
-      case 'b':
-        engage(B_OUTPUT, SHORT_ENGAGE_MS);
-        break;
+      case 'b': // Fall through on purpose
       case 'B':
-        engage(B_OUTPUT, LONG_ENGAGE_MS);
+        engage(B_OUTPUT, delay);
         break;
       default:
         // Do nothing, just ignore

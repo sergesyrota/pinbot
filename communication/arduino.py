@@ -1,4 +1,5 @@
 import serial
+import math
 
 
 class Arduino(object):
@@ -7,17 +8,11 @@ class Arduino(object):
     def __init__(self, port, baud=115200):
         self.serial = serial.Serial(port, baud)
 
-    def longPressA(self):
-        self.serial.write('A')
+    def pressA(self, milliseconds):
+        self.serial.write('A' + chr(int(math.ceil(milliseconds/10))))
 
-    def shortPressA(self):
-        self.serial.write('a')
-
-    def longPressB(self):
-        self.serial.write('B')
-
-    def shortPressB(self):
-        self.serial.write('b')
+    def pressB(self, milliseconds):
+        self.serial.write('B' + chr(int(math.ceil(milliseconds/10))))
 
     def close(self):
         if (self.serial):

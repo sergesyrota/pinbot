@@ -145,10 +145,10 @@ while True:
         elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
             if (not(args.debug_right)):
-                arduino.shortPressA()
+                arduino.pressA(args.latency)
             state.time_press_a = datetime.now()
             state.flipper_countour_sent = False
-            frame_text.append("Short press A")
+            frame_text.append("Press A")
     elif not(state.flipper_b_trained):
         frame_text.append("Training B")
         print("\rTraining B                 ", end="")
@@ -163,10 +163,10 @@ while True:
         elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
             if (not(args.debug_left)):
-                arduino.shortPressB()
+                arduino.pressB(args.latency)
             state.time_press_b = datetime.now()
             state.flipper_countour_sent = False
-            frame_text.append("Short press B")
+            frame_text.append("Press B")
     else:
         print("\rGame in progress                 ", end="")
         frame_text.append("Game")
@@ -175,14 +175,14 @@ while True:
             # Make sure to wait for cooldown, if it was fired recently
             if (flipper_a.check(c) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
-                    arduino.shortPressA()
+                    arduino.pressA(args.latency)
                 state.time_press_a = datetime.now()
-                frame_text.append("Short press A")
+                frame_text.append("Press A")
             if (flipper_b.check(c) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
-                    arduino.shortPressB()
+                    arduino.pressB(args.latency)
                 state.time_press_b = datetime.now()
-                frame_text.append("Short press B")
+                frame_text.append("Press B")
 
     # Draw contours we find on the original frame, for debugging
     if (args.show or args.out):
