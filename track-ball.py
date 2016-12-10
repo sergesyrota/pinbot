@@ -82,8 +82,8 @@ else:
     camera.set(4, 240)  # height
     camera.set(5, 60.0)  # fps
 
-fgbg = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
-#fgbg = cv2.bgsegm.createBackgroundSubtractorMOG(10, 10)
+subtractorGMG = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
+subtractorMOG = cv2.bgsegm.createBackgroundSubtractorMOG()
 
 # Saving output for further analysis, if output is specified
 if (args.out):
@@ -105,9 +105,16 @@ predictor = Bruteforce(
     max_area=int(camera.get(3)*camera.get(4)/20),  # Looks like max area does not make sense to define
     max_speed=max(camera.get(3), camera.get(4))/500.0  # Limit speed to 10% of the frame in 50 ms
 )
+fps_frames = 50
+fps_time = datetime.now()
 while True:
     frame_text = []
     state.frame_number = state.frame_number+1
+    if (state.frame_number % fps_frames == 0):
+        diff = datetime.now() - fps_time
+        fps = fps_frames / (diff.seconds + diff.microseconds/1E6)
+        print("{:.01f} FPS".format(fps))
+        fps_time = datetime.now()
     # grab the current frame
     (grabbed, frame) = camera.read()
     state.time_captured = datetime.now()
@@ -115,7 +122,6 @@ while True:
     # then we have reached the end of the video
     if not grabbed:
         break
-
     # If we're in training mode, might need to skip a frame or two for flipper to react and background subtractor to
     # find affected areas
     # And we should not do it in debug mode, as it's skipping a lot of frames...
@@ -125,25 +131,22 @@ while True:
        (datetime.now() - max(state.time_press_a, state.time_press_b)) < timedelta(milliseconds=args.latency)):
         continue
 
-    # Detection works better on a blurred frame
-    blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-    mask = fgbg.apply(frame)
+    # For training, MOG subtractor works better. For game, GMG.
+    if (not(state.flipper_a_trained and state.flipper_b_trained)):
+        mask = subtractorMOG.apply(frame)
+        mask = cv2.dilate(mask, None, iterations=3)
+    else:
+        # Detection works better on a blurred frame
+        # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        mask = subtractorGMG.apply(frame)
+        mask = cv2.erode(mask, None, iterations=1)
+        mask = cv2.dilate(mask, None, iterations=1)
     # It takes 120 frames to train background subtraction
     if (state.frame_number < args.training_frames+2):
         continue
-    mask = cv2.erode(mask, None, iterations=3)
-    mask = cv2.dilate(mask, None, iterations=1)
     (_, contours, _) = cv2.findContours(mask.copy(),
                                         cv2.RETR_EXTERNAL,
                                         cv2.CHAIN_APPROX_SIMPLE)
-    # BEGIN HACK
-    predictor.add_contours(contours, state.time_captured)
-    for l in predictor.get_lines():
-        cv2.line(frame, l['past'], l['present'], (0, 0, 255))
-        cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
-        # This can be used to troubleshoot filter by areas
-        # cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    # END HACK
 
     if not(state.flipper_a_trained):
         frame_text.append("Training A")
@@ -151,10 +154,9 @@ while True:
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_a
         if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
-            for c in contours:
-                flipper_a.add_contour(c)
+            flipper_a.add_mask(mask)
             state.flipper_countour_sent = True
-            state.flipper_a_trained = flipper_a.train()
+            state.flipper_a_trained = flipper_a.train_masks()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
@@ -169,10 +171,9 @@ while True:
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_b
         if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
-            for c in contours:
-                flipper_b.add_contour(c)
+            flipper_b.add_mask(mask)
             state.flipper_countour_sent = True
-            state.flipper_b_trained = flipper_b.train()
+            state.flipper_b_trained = flipper_b.train_masks()
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
@@ -184,37 +185,54 @@ while True:
     else:
         print("\rGame in progress                 ", end="")
         frame_text.append("Game")
-        for c in contours:
-            # Check if object intersects with flipper A, and fire flipper, if necessary
-            # Make sure to wait for cooldown, if it was fired recently
-            if (flipper_a.check(c) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
+        # BEGIN HACK
+        predictor.add_contours(contours, state.time_captured)
+        for l in predictor.get_lines():
+            cv2.line(frame, l['past'], l['present'], (0, 0, 255))
+            cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
+            # r = flipper_a.check_line(l['future_min'], l['future_max'])
+            # cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 255, 0), 2)
+            # This can be used to troubleshoot filter by areas
+            cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            if (flipper_a.check_line(l['future_min'], l['future_max']) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
                     arduino.pressA(args.latency)
                 state.time_press_a = datetime.now()
                 frame_text.append("Press A")
-            if (flipper_b.check(c) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
+            if (flipper_b.check_line(l['future_min'], l['future_max']) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
                     arduino.pressB(args.latency)
                 state.time_press_b = datetime.now()
                 frame_text.append("Press B")
+        # END HACK
+        # for c in contours:
+        #     # Check if object intersects with flipper A, and fire flipper, if necessary
+        #     # Make sure to wait for cooldown, if it was fired recently
+        #     if (flipper_a.check(c) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
+        #         if (not(args.debug_right)):
+        #             arduino.pressA(args.latency)
+        #         state.time_press_a = datetime.now()
+        #         frame_text.append("Press A")
+        #     if (flipper_b.check(c) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
+        #         if (not(args.debug_right)):
+        #             arduino.pressB(args.latency)
+        #         state.time_press_b = datetime.now()
+        #         frame_text.append("Press B")
 
     # Draw contours we find on the original frame, for debugging
     if (args.show or args.out):
         # Draw contours that define target area from flippers
         if (state.flipper_a_trained):
-            for r in flipper_a.effective_areas:
-                cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 0, 0), 2)
+            cv2.drawContours(frame, flipper_a.get_trained_mask_contours(), -1, (255, 0, 0), 3)
         if (state.flipper_b_trained):
-            for r in flipper_b.effective_areas:
-                cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 0, 0), 2)
+            cv2.drawContours(frame, flipper_b.get_trained_mask_contours(), -1, (255, 0, 0), 3)
         # Draw all countours currently found in the frame.
         for c in contours:
             # if the contour is too small, ignore it
             if cv2.contourArea(c) < 80:
                 continue
             # compute the bounding box for the contour, draw it on the frame
-            (x, y, w, h) = cv2.boundingRect(c)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
             # print('%d, %d; size: %d' % (x+w/2, y+h/2, cv2.contourArea(c)))
 
     #HACK begin
