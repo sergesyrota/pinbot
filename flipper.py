@@ -26,7 +26,7 @@ class Flipper(object):
                     machine.trigger_left()
     """
 
-    def __init__(self, name=None, num_masks=6, min_effective=3):
+    def __init__(self, name=None, num_masks=12, min_effective=8):
         self.name = name
         self.effective_areas = []
         self.masks = []  # Storing masks here
@@ -55,6 +55,7 @@ class Flipper(object):
             return False
 
     def train_masks(self):
+        print("Training mask with %d elements" % len(self.masks))
         if (len(self.masks) < self.num_masks):
             return False
         # initialize mask with all zeroes
@@ -72,6 +73,7 @@ class Flipper(object):
     def is_good_mask(self):
         # minimum area that should be considered OK
         min_size = self.combined_mask.size/500
+        print("Min size: %d" % min_size)
         (_, contours, _) = cv2.findContours(self.combined_mask.copy(),
                                             cv2.RETR_EXTERNAL,
                                             cv2.CHAIN_APPROX_SIMPLE)
@@ -87,6 +89,15 @@ class Flipper(object):
             return True
         else:
             return False
+
+    def get_hull_mask(self):
+        print(self.hull_mask)
+        return self.hull_mask
+
+    def load_hull_mask(self, file):
+        self.combined_mask = numpy.loadtxt(file, delimiter=',', dtype='uint8')
+        print(self.combined_mask)
+        return
 
     def get_trained_mask_contours(self):
         return self.mask_contours
