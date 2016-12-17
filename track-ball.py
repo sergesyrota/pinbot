@@ -13,7 +13,15 @@ from communication.arduino import Arduino
 from time import sleep
 from flipper import Flipper
 from predictor_bruteforce import Bruteforce
-from imutils.video import WebcamVideoStream
+from lib.WebcamVideoStream import WebcamVideoStream
+import signal
+
+globalExitFlag = False
+def signal_handler(signal, frame):
+    print('You pressed Ctrl+C!')
+    global globalExitFlag
+    globalExitFlag = True
+    # stream.stop()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video, either a path to a file, or camera number', required=True)
@@ -69,6 +77,8 @@ class State:
     time_processing_ended = 0
     # Timestamp of when we finished capturing a frame
     time_captured = 0
+    # timestamp of when we actually read the frame (as we're multithreaded)
+    time_frame_read = 0
     # Timestamp of when command to press button was last sent
     # Needed to track flipper location for training and to prevent feedback loops from own movement
     time_press_a = datetime.now()
@@ -81,9 +91,14 @@ class State:
 
     # Tracking frame numbers, possibly useful in training on video...
     frame_number = 0
+    # Counter for actuall processed frames
+    frames_processed = 0
 
 
 stream = WebcamVideoStream(args.src)
+stream.start()
+# Set up signal handler to make sure we kill all threads
+signal.signal(signal.SIGINT, signal_handler)
 
 subtractorGMG = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
 subtractorMOG = cv2.bgsegm.createBackgroundSubtractorMOG()
@@ -125,15 +140,17 @@ while True:
         frame_data = stream.read()
         if state.frame_number == frame_data['number']:
             # This is the same frame we already looked at, so keep trying
-            print("waiting for frame %d" % frame_data['number'])
-            sleep(0.1)
+            # print("Waiting for new frame")
+            sleep(0.001)
             continue
         frame = frame_data['frame']
         state.time_captured = frame_data['timestamp']
+        state.time_frame_read = datetime.now()
         # New frame, so we can update frame number and exit the loop
         state.frame_number = frame_data['number']
+        state.frames_processed += 1
         break
-    if (state.frame_number % fps_frames == 0):
+    if (state.frames_processed % fps_frames == 0):
         diff = datetime.now() - fps_time
         fps = fps_frames / (diff.seconds + diff.microseconds/1E6)
         print("{:.01f} FPS".format(fps))
@@ -212,8 +229,8 @@ while True:
         # BEGIN HACK
         predictor.add_contours(contours, state.time_captured)
         for l in predictor.get_lines(future=args.ball_prediction_time):
-            # cv2.line(frame, l['past'], l['present'], (0, 0, 255))
-            # cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
+            cv2.line(frame, l['past'], l['present'], (0, 0, 255))
+            cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
             # # This can be used to troubleshoot filter by areas
             # cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             if (flipper_a.check_line(l['future_min'], l['future_max'], 6) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
@@ -240,7 +257,6 @@ while True:
         #             arduino.pressB(args.latency)
         #         state.time_press_b = datetime.now()
         #         frame_text.append("Press B")
-
     # Draw contours we find on the original frame, for debugging
     if (args.show or args.out):
         # Draw contours that define target area from flippers
@@ -266,10 +282,10 @@ while True:
     #HACK end
     # Processing END timeframe
     frame_text.insert(0, "{:06d} {}".format(state.frame_number, getSecondsString(state.time_captured-state.time_start)))
-    frame_text.insert(1, "Capture: {}s".format(getSecondsString(state.time_captured-state.time_processing_ended)))
+    frame_text.insert(1, "Capture: {}s".format(getSecondsString(state.time_frame_read-state.time_processing_ended)))
     # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
     state.time_processing_ended = datetime.now()
-    frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)))
+    frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_frame_read)))
     if (args.show or args.out):
         for i, line in enumerate(frame_text):
             y = 21 + i*20
@@ -284,11 +300,16 @@ while True:
     key = cv2.waitKey(1) & 0xFF
 
     # if the 'q' key is pressed, stop the loop
-    if key == ord("q"):
+    if globalExitFlag or key == ord("q"):
         break
 
 # cleanup the camera and close any open windows
-camera.release()
+stream.stop()
+print("stopping stream")
+while not(stream.stopped):
+    print("Waiting for stream to stop...")
+    sleep(0.1)
+print("exiting")
 if (args.out):
     out.release()
 cv2.destroyAllWindows()

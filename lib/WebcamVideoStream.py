@@ -27,24 +27,33 @@ class WebcamVideoStream:
 
         # initialize the variable used to indicate if the thread should
         # be stopped
+        self.stopRequest = False
+        # this should say when thread is actually stopped
         self.stopped = False
 
     def start(self):
         # start the thread to read frames from the video stream
-        Thread(target=self.update, args=()).start()
+        try:
+            self.stopped = False
+            self.stopRequest = False
+            Thread(target=self.update, args=()).start()
+        except (KeyboardInterrupt, SystemExit):
+            self.stop()
+            sys.exit()
         return self
 
     def update(self):
         # keep looping infinitely until the thread is stopped
         while True:
-            print("Waiting for frame to be read")
             # if the thread indicator variable is set, stop the thread
-            if self.stopped:
+            if self.stopRequest:
+                print("Stream got stop request")
+                self.stream.release()
+                self.stopped = True
                 return
             # If we need to wait for read, and it was not read yet, keep looping, with a 1ms sleep
             if self.wait_for_read and not(self.frame_read):
                 sleep(0.001)
-                print("Waiting for frame to be read")
                 continue
             # otherwise, read the next frame from the stream
             (self.grabbed, self.frame) = self.stream.read()
@@ -52,7 +61,7 @@ class WebcamVideoStream:
             self.frame_number = self.frame_number + 1
             self.frame_read = False
             if not(self.grabbed):
-                self.stopped = True
+                self.stopRequest = True
 
     def read(self):
         # Mark that we read the frame, so we can grab the next one from the file. Not used for actual camera
@@ -67,7 +76,7 @@ class WebcamVideoStream:
 
     def stop(self):
         # indicate that the thread should be stopped
-        self.stopped = True
+        self.stopRequest = True
 
     def getParam(self, param):
         return self.stream.get(param)
