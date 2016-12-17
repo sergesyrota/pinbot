@@ -32,7 +32,7 @@ class Bruteforce(object):
 
     # future defines how many milliseconds in the future we want to find the object
     # timing_error defines +/- range to apply for future prediction. E.g. 0.1 means +/- 10%, so 60 becomes 54-66ms
-    def get_lines(self, future=60, timing_error=0.3):
+    def get_lines(self, future=60, timing_error=0.25):
         if (len(self.contour_sets) < 2):
             return iter(())
         # time difference between lines

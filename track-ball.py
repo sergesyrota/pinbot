@@ -13,6 +13,15 @@ from communication.arduino import Arduino
 from time import sleep
 from flipper import Flipper
 from predictor_bruteforce import Bruteforce
+from lib.WebcamVideoStream import WebcamVideoStream
+import signal
+
+globalExitFlag = False
+def signal_handler(signal, frame):
+    print('You pressed Ctrl+C!')
+    global globalExitFlag
+    globalExitFlag = True
+    # stream.stop()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--src', help='Input video, either a path to a file, or camera number', required=True)
@@ -36,6 +45,10 @@ parser.add_argument('--cooldown',
 parser.add_argument('--latency',
                     help='''Flipper latency (milliseconds). How long will it pass since the frame capture time where
                         we decide to press the button to it actually firing''',
+                    default=100, type=int,
+                    required=False)
+parser.add_argument('--ball-prediction-time',
+                    help='''how much in the future to predict ball movement, to evaluate where it will be''',
                     default=60, type=int,
                     required=False)
 parser.add_argument('--debug-right',
@@ -43,6 +56,12 @@ parser.add_argument('--debug-right',
                     required=False)
 parser.add_argument('--debug-left',
                     help='Frame numbers of left flipper detection contours for training on video (comma separated)',
+                    required=False)
+parser.add_argument('--load-a',
+                    help='Load effective area 8-bit mask from CSV file, for manual tweaking',
+                    required=False)
+parser.add_argument('--load-b',
+                    help='Load effective area 8-bit mask from CSV file, for manual tweaking',
                     required=False)
 args = parser.parse_args()
 
@@ -58,6 +77,8 @@ class State:
     time_processing_ended = 0
     # Timestamp of when we finished capturing a frame
     time_captured = 0
+    # timestamp of when we actually read the frame (as we're multithreaded)
+    time_frame_read = 0
     # Timestamp of when command to press button was last sent
     # Needed to track flipper location for training and to prevent feedback loops from own movement
     time_press_a = datetime.now()
@@ -70,17 +91,14 @@ class State:
 
     # Tracking frame numbers, possibly useful in training on video...
     frame_number = 0
+    # Counter for actuall processed frames
+    frames_processed = 0
 
 
-if (os.path.isfile(args.src)):
-    # Video file
-    camera = cv2.VideoCapture(args.src)
-else:
-    # Webcam
-    camera = cv2.VideoCapture(int(args.src))
-    camera.set(3, 320)  # width
-    camera.set(4, 240)  # height
-    camera.set(5, 60.0)  # fps
+stream = WebcamVideoStream(args.src)
+stream.start()
+# Set up signal handler to make sure we kill all threads
+signal.signal(signal.SIGINT, signal_handler)
 
 subtractorGMG = cv2.bgsegm.createBackgroundSubtractorGMG(args.training_frames, 0.6)
 subtractorMOG = cv2.bgsegm.createBackgroundSubtractorMOG()
@@ -90,37 +108,56 @@ if (args.out):
     if (os.path.isfile(args.out)):
         os.remove(args.out)
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
-    out = cv2.VideoWriter(args.out, fourcc, 10.0, (int(camera.get(3)), int(camera.get(4))))
+    out = cv2.VideoWriter(args.out, fourcc, 10.0, (int(stream.getParam(3)), int(stream.getParam(4))))
 
 # Keep track of current state in this object
 state = State()
 arduino = Arduino(args.port)
+# Gving some time for serial port to stabilize
+# sleep(3)
 state.time_start = state.time_processing_ended = datetime.now()
 currentStage = -1
 
 flipper_a = Flipper(name='rigth')
+if args.load_a:
+    flipper_a.load_hull_mask(args.load_a)
+    state.flipper_a_trained = flipper_a.is_good_mask()
 flipper_b = Flipper(name='left')
+if args.load_b:
+    flipper_b.load_hull_mask(args.load_b)
+    state.flipper_b_trained = flipper_b.is_good_mask()
 predictor = Bruteforce(
-    min_area=int(camera.get(3)*camera.get(4)/4000),
-    max_area=int(camera.get(3)*camera.get(4)/20),  # Looks like max area does not make sense to define
-    max_speed=max(camera.get(3), camera.get(4))/500.0  # Limit speed to 10% of the frame in 50 ms
+    min_area=int(stream.getParam(3)*stream.getParam(4)/4000),
+    max_area=int(stream.getParam(3)*stream.getParam(4)/20),  # Looks like max area does not make sense to define
+    max_speed=max(stream.getParam(3), stream.getParam(4))/500.0  # Limit speed to 10% of the frame in 50 ms
 )
 fps_frames = 50
 fps_time = datetime.now()
 while True:
     frame_text = []
-    state.frame_number = state.frame_number+1
-    if (state.frame_number % fps_frames == 0):
+    # grab the next frame, making sure it is not the same frame we already processed
+    while True:
+        frame_data = stream.read()
+        if state.frame_number == frame_data['number']:
+            # This is the same frame we already looked at, so keep trying
+            # print("Waiting for new frame")
+            sleep(0.001)
+            continue
+        frame = frame_data['frame']
+        state.time_captured = frame_data['timestamp']
+        state.time_frame_read = datetime.now()
+        # New frame, so we can update frame number and exit the loop
+        state.frame_number = frame_data['number']
+        state.frames_processed += 1
+        break
+    if (state.frames_processed % fps_frames == 0):
         diff = datetime.now() - fps_time
         fps = fps_frames / (diff.seconds + diff.microseconds/1E6)
         print("{:.01f} FPS".format(fps))
         fps_time = datetime.now()
-    # grab the current frame
-    (grabbed, frame) = camera.read()
-    state.time_captured = datetime.now()
     # if we are viewing a video and we did not grab a frame,
     # then we have reached the end of the video
-    if not grabbed:
+    if frame_data['stopped']:
         break
     # If we're in training mode, might need to skip a frame or two for flipper to react and background subtractor to
     # find affected areas
@@ -137,9 +174,9 @@ while True:
         mask = cv2.dilate(mask, None, iterations=3)
     else:
         # Detection works better on a blurred frame
-        # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-        mask = subtractorGMG.apply(frame)
-        mask = cv2.erode(mask, None, iterations=1)
+        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        mask = subtractorGMG.apply(blurred)
+        mask = cv2.erode(mask, None, iterations=3)
         mask = cv2.dilate(mask, None, iterations=1)
     # It takes 120 frames to train background subtraction
     if (state.frame_number < args.training_frames+2):
@@ -150,13 +187,15 @@ while True:
 
     if not(state.flipper_a_trained):
         frame_text.append("Training A")
-        print("\rTraining A                 ", end="")
+        # print("\rTraining A                 ", end="")
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_a
-        if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
+        if (not(state.flipper_countour_sent)):
             flipper_a.add_mask(mask)
             state.flipper_countour_sent = True
             state.flipper_a_trained = flipper_a.train_masks()
+            if state.flipper_a_trained:
+                np.savetxt('./tmp/a-area.csv', flipper_a.get_hull_mask(), fmt='%d', delimiter=',')
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_right) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_right and str(state.frame_number) in args.debug_right.split(","))):  # < this on video
@@ -167,13 +206,15 @@ while True:
             frame_text.append("Press A")
     elif not(state.flipper_b_trained):
         frame_text.append("Training B")
-        print("\rTraining B                 ", end="")
+        # print("\rTraining B                 ", end="")
         # Check if flipper was pressed to add contours
         delta = datetime.now() - state.time_press_b
-        if (delta < timedelta(milliseconds=100) and not(state.flipper_countour_sent)):
+        if (not(state.flipper_countour_sent)):
             flipper_b.add_mask(mask)
             state.flipper_countour_sent = True
             state.flipper_b_trained = flipper_b.train_masks()
+            if state.flipper_b_trained:
+                np.savetxt('./tmp/b-area.csv', flipper_b.get_hull_mask(), fmt='%d', delimiter=',')
         # for training, we can go by actually pressing the buttons, or by frame numbers from recorded video
         elif ((not(args.debug_left) and delta > timedelta(milliseconds=args.cooldown)) or  # < this is based on action
               (args.debug_left and str(state.frame_number) in args.debug_left.split(","))):  # < this on video
@@ -187,19 +228,17 @@ while True:
         frame_text.append("Game")
         # BEGIN HACK
         predictor.add_contours(contours, state.time_captured)
-        for l in predictor.get_lines():
+        for l in predictor.get_lines(future=args.ball_prediction_time):
             cv2.line(frame, l['past'], l['present'], (0, 0, 255))
             cv2.line(frame, l['future_min'], l['future_max'], (255, 255, 0), 2)
-            # r = flipper_a.check_line(l['future_min'], l['future_max'])
-            # cv2.rectangle(frame, (r.x0, r.y0), (r.x1, r.y1), (255, 255, 0), 2)
-            # This can be used to troubleshoot filter by areas
-            cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            if (flipper_a.check_line(l['future_min'], l['future_max']) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
+            # # This can be used to troubleshoot filter by areas
+            # cv2.putText(frame, "{0}".format(l['present_area']), l['present'], cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            if (flipper_a.check_line(l['future_min'], l['future_max'], 6) and ((datetime.now() - state.time_press_a) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
                     arduino.pressA(args.latency)
                 state.time_press_a = datetime.now()
                 frame_text.append("Press A")
-            if (flipper_b.check_line(l['future_min'], l['future_max']) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
+            if (flipper_b.check_line(l['future_min'], l['future_max'], 6) and ((datetime.now() - state.time_press_b) > timedelta(milliseconds=args.cooldown))):
                 if (not(args.debug_right)):
                     arduino.pressB(args.latency)
                 state.time_press_b = datetime.now()
@@ -218,7 +257,6 @@ while True:
         #             arduino.pressB(args.latency)
         #         state.time_press_b = datetime.now()
         #         frame_text.append("Press B")
-
     # Draw contours we find on the original frame, for debugging
     if (args.show or args.out):
         # Draw contours that define target area from flippers
@@ -244,10 +282,10 @@ while True:
     #HACK end
     # Processing END timeframe
     frame_text.insert(0, "{:06d} {}".format(state.frame_number, getSecondsString(state.time_captured-state.time_start)))
-    frame_text.insert(1, "Capture: {}s".format(getSecondsString(state.time_captured-state.time_processing_ended)))
+    frame_text.insert(1, "Capture: {}s".format(getSecondsString(state.time_frame_read-state.time_processing_ended)))
     # This needs to be assigned after ^ capture time calculation, so we can use the same timer.
     state.time_processing_ended = datetime.now()
-    frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_captured)))
+    frame_text.insert(2, "Processing: {}s".format(getSecondsString(state.time_processing_ended-state.time_frame_read)))
     if (args.show or args.out):
         for i, line in enumerate(frame_text):
             y = 21 + i*20
@@ -262,11 +300,16 @@ while True:
     key = cv2.waitKey(1) & 0xFF
 
     # if the 'q' key is pressed, stop the loop
-    if key == ord("q"):
+    if globalExitFlag or key == ord("q"):
         break
 
 # cleanup the camera and close any open windows
-camera.release()
+stream.stop()
+print("stopping stream")
+while not(stream.stopped):
+    print("Waiting for stream to stop...")
+    sleep(0.1)
+print("exiting")
 if (args.out):
     out.release()
 cv2.destroyAllWindows()
